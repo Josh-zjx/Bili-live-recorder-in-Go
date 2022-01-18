@@ -7,14 +7,16 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var (
-	new_api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?device=phone&platform=h5&scale=3&build=10000&protocol=0,1&format=0,1,2&codec=0,1&room_id="
-	uid_api = "http://api.live.bilibili.com/live_user/v1/Master/info?uid="
+	room_api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?device=phone&platform=h5&scale=3&build=10000&protocol=0,1&format=0,1,2&codec=0,1&room_id="
+	uid_api  = "http://api.live.bilibili.com/live_user/v1/Master/info?uid="
 )
 
 type Live_room_detail struct {
+	// This struct is directly derived from the JSON response of room_api
 	Code    int    `json: "code"`
 	Msg     string `json:"msg"`
 	Message string `json:"message"`
@@ -73,6 +75,7 @@ type Live_room_detail struct {
 	} `json:"data"`
 }
 type Live_user_info struct {
+	// The struct is directly derived from the JSON response of uid_api
 	Code    int    `json:"code"`
 	Msg     string `json:"msg"`
 	Message string `json:"message"`
@@ -111,15 +114,63 @@ type Live_user_info struct {
 
 type Btuber struct {
 	ready       bool
-	User_info   Live_user_info
-	Room_detail Live_room_detail
+	User_info   Live_user_info   // Basic user info | possibly won't change | filled when initialize
+	Room_detail Live_room_detail // Live room info | could change any time | fetched when used
 }
 
 func New() Btuber {
+	// Ctor
 	var newBtuber Btuber
+	newBtuber.ready = false // the user is forced to initialize with uid
 	return newBtuber
 }
+func (p *Btuber) On_live() (bool, error) {
+	// Return if the room is currently in Livestream
+	// Must called after Parse_uid
+	if !p.ready {
+		return false, errors.New("Btuber not initialized with legal uid")
+	}
+	err := p.Get_room_info() // Refreshing the room info first
+	if err != nil {
+		return false, err
+	}
+	return p.Room_detail.Data.Live_status == 1, nil
+}
+func (p *Btuber) Subscribe() (chan int, error) {
+	// return a notify channel subscibing to the room
+	// notify would recieve a value when the room is live
+	if !p.ready {
+		return nil, errors.New("Btuber not initialized with legal uid")
+	}
+	notify := make(chan int)
+	go p.Test_on_live(notify)
+	return notify, nil
+}
+func (p *Btuber) Test_on_live(notify chan int) {
+	// Repeatedly check whether the room is live
+	// send 1 to notify channel when live
+	liveness := false
+	t := time.NewTicker(5000 * time.Millisecond) // Politeness
+	defer t.Stop()
+	live, _ := p.On_live()
+	if !liveness && live {
+		notify <- 1
+	}
+	liveness = live
+	for {
+		select {
+		case <-t.C:
+			live, _ := p.On_live()
+			if !liveness && live {
+				notify <- 1
+			}
+			liveness = live
+		}
+	}
+}
 func (p *Btuber) Parse_uid(uid string) error {
+	// Fill a Btuber instance with information fetched from his/her uid
+	// Return an error if failed in http or wrong uid
 	resp, err := http.Get(uid_api + uid)
 	if err != nil {
 		fmt.Println("Error in parsing UID")
@@ -131,10 +182,16 @@ func (p *Btuber) Parse_uid(uid string) error {
 	if p.User_info.Data.Info.Uid == 0 {
 		return errors.New("Null User")
 	}
+	p.ready = true
 	return nil
 }
 func (p *Btuber) Get_room_info() error {
-	resp, err := http.Get(new_api + strconv.Itoa(p.User_info.Data.Room_id))
+	// Fill a Btuber instance with room information fetched from its room_id
+	// Must called after Parse_uid
+	if !p.ready {
+		return errors.New("Btuber not initialized with legal uid")
+	}
+	resp, err := http.Get(room_api + strconv.Itoa(p.User_info.Data.Room_id))
 	if err != nil {
 		fmt.Println("Error in parsing Roomid")
 		return err
@@ -148,9 +205,22 @@ func (p *Btuber) Get_room_info() error {
 	return nil
 }
 func (p *Btuber) Get_url() (string, error) {
+	// Return the default livestream url of the Btuber
+	// Must called after Get_room_info
+	if !p.ready {
+		return "", errors.New("Btuber not initialized with legal uid")
+	}
+	liveness, _ := p.On_live()
+	if !liveness {
+		return "", errors.New("Room not in Live")
+	}
 	target := p.Room_detail.Data.Playurl_info.Playurl.Stream[0].Format[0].Codec[0]
 	return target.Url_info[0].Host + target.Base_url + target.Url_info[0].Extra, nil
 }
-func (p *Btuber) Get_user_name() string {
-	return p.User_info.Data.Info.Uname
+func (p *Btuber) Get_user_name() (string, error) {
+	// Return User name of the Btuber
+	if !p.ready {
+		return "", errors.New("Btuber not initialized with legal uid")
+	}
+	return p.User_info.Data.Info.Uname, nil
 }

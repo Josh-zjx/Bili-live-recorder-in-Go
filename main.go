@@ -10,6 +10,9 @@ import (
 )
 
 func main() {
+    // Basic usage example
+    // Calling with go run . [uid]
+    // For example go run . 123123123123 or bilibili-livestream-recorder 123123123123
 	args := os.Args
 	if len(args) == 1 {
 		fmt.Println("No Arguments")
@@ -20,7 +23,6 @@ func main() {
 	btuber.Parse_uid(uid)
 	btuber.Get_room_info()
 	monitor(&btuber)
-
 	return
 }
 
@@ -64,31 +66,33 @@ func downloader(input chan video_slice, output chan video_slice, done chan int) 
 		}
 	}
 }
+
 func /*(p *api.Btuber)*/ monitor(p *api.Btuber) error {
+    // Monitoring the Btuber
+    // Download video slice when room is live
 	queue := make(chan video_slice)
 	output := make(chan video_slice)
 	done := make(chan int)
-	go downloader(queue, output, done)
-	count := 0
-	prev, err := p.Get_url()
+	notify, err := p.Subscribe()
 	if err != nil {
-		done <- 1
 		return err
 	}
-	queue <- video_slice{url: prev, id: count}
-	var url string
+	go downloader(queue, output, done)
+	count := 0
+	name, _ := p.Get_user_name()
+	fmt.Printf("Monitoring %v's Room\n", name)
 	for {
-		<-output
-		url, err = p.Get_url()
+		<-notify
+
+		url, err := p.Get_url()
 		if err != nil {
 			done <- 1
 			return err
 		}
-		if url != prev {
-			count += 1
-			queue <- video_slice{url: url, id: count}
-			prev = url
-		}
+		count += 1
+		fmt.Printf("Starting download slice %d\n", count)
+		queue <- video_slice{url: url, id: count}
+		<-output
 	}
 	done <- 1
 	return nil
