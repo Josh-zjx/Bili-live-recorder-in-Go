@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	room_api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?device=phone&platform=h5&scale=3&build=10000&protocol=0,1&format=0,1,2&codec=0,1&room_id="
+	room_api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?platform=web&protocol=0,1&format=0,1,2&codec=0,1&qn=0&room_id="
 	uid_api  = "http://api.live.bilibili.com/live_user/v1/Master/info?uid="
 )
 
@@ -25,7 +25,7 @@ type Live_room_detail struct {
 		Short_id          int   `json:"short_id"`
 		Uid               int   `json:"uid"`
 		Need_p2p          int   `json:"need_p2p"`
-		Is_hidden         bool  `json:"is_hidden"`
+		Ishidden          bool  `json:"is_hidden"`
 		Is_locked         bool  `json:"is_locked"`
 		Is_portrait       bool  `json:"is_portrait"`
 		Live_status       int   `json:"live_status"`
@@ -110,6 +110,37 @@ type Live_user_info struct {
 			Ctime_text string `json:"ctime_text"`
 		} `json:"room_news"`
 	} `json:"data"`
+}
+type Stream_url struct {
+	Url      string
+	Qn       int
+	Codec    string
+	Format   string
+	Protocol string
+}
+
+func (p *Btuber) Show_avaible_urls() []Stream_url {
+	var urls []Stream_url
+	for _, protocal := range p.Room_detail.Data.Playurl_info.Playurl.Stream {
+		for _, format := range protocal.Format {
+			for _, codec := range format.Codec {
+				if len(codec.Url_info) > 0 {
+					urls = append(urls, Stream_url{Url: codec.Url_info[0].Host + codec.Base_url + codec.Url_info[0].Extra, Qn: codec.Current_qn, Codec: codec.Codec_name, Format: format.Format_name, Protocol: protocal.Protocol_name})
+				}
+			}
+		}
+	}
+	return urls
+}
+func (p *Btuber) Get_room_news() (string, error) {
+	p.ready = false
+	p.Parse_uid(strconv.Itoa(p.User_info.Data.Info.Uid))
+	if !p.ready {
+		return "", errors.New("Btuber not initialized with legal uid")
+	}
+	news := p.User_info.Data.Info.Uname + " posted:\n"
+	news += p.User_info.Data.Room_news.Content + "\n on " + p.User_info.Data.Room_news.Ctime_text
+	return news, nil
 }
 
 type Btuber struct {
