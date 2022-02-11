@@ -92,14 +92,14 @@ func downloader(input chan video_slice, output chan video_slice, done chan int) 
 	for {
 		select {
 		case to_download = <-input:
-			req, _ := grab.NewRequest(".", to_download.url)
-			req.Filename = to_download.filename + ".flv"
-			fmt.Println("Downloading Slice", req.Filename)
-			fmt.Printf("Download will start soon\n")
-			resp := client.Do(req)
-			fmt.Println("0 transferred")
-			t := time.NewTicker(500 * time.Millisecond)
-			defer t.Stop()
+            req, _ := grab.NewRequest(".", to_download.url)
+            req.Filename = to_download.filename + ".flv"
+            fmt.Println("Downloading Slice", req.Filename)
+            fmt.Printf("Download will start soon\n")
+            resp := client.Do(req)
+            fmt.Println("0 transferred")
+            t := time.NewTicker(500 * time.Millisecond)
+            defer t.Stop()
 
 		Loop:
 			for {
@@ -146,10 +146,11 @@ func monitor(p *api.Btuber) error {
 		url, _ := p.Get_url()
 		count += 1
 		fmt.Printf("Starting download slice %d\n", count)
-		queue <- video_slice{url: url, filename: p.User_info.Data.Info.Uname + "-" + strconv.Itoa(count)}
+        timer := time.Now()
+        curYear, curMonth, curDay := timer.Date()
+        datestring := fmt.Sprintf("%d-%d-%d",curYear, curMonth, curDay)
+		queue <- video_slice{url: url, filename: p.User_info.Data.Info.Uname + "-" + datestring + "-" + strconv.Itoa(count)}
 		<-output
 		fmt.Println("Got one!")
 	}
-	done <- 1
-	return nil
 }

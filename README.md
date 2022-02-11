@@ -14,19 +14,18 @@ This project is designed to be
     - Design Patterns
     - Performance Tuning
 
-This project is primal and naive now. Anyone who is currently looking for a versatile and robust recorder should check [BililiveRecorder](https://github.com/Bililive/BililiveRecorder)
+This project is primal and naive now. Anyone who is looking for a versatile and robust recorder should check [BililiveRecorder](https://github.com/Bililive/BililiveRecorder)
 
 ## Basic Usage Example (working)
-As source code
-```
-go run . 123123
-```
+#### Arguments
+- -h, --help to show all arguments and comments
+- -u, --uid= to specify the target uid
+- -n, --name to get the username of the uid
+- -l, --listen to listen to the livestream
+- -s, --show to show all livestream urls fetched
 
-As installed binary
-```
-bilibili-livestream-recorder 123123
-```
 ## Working on 
-- [ ] Add cli argument parser and more wrapper functions to fully use the API
+- [x] Add cli argument parser to
+- [ ] Add more wrapper functions to fully use the API
 - [ ] Add auto slice functionality
 - [x] Refine naming strategy
